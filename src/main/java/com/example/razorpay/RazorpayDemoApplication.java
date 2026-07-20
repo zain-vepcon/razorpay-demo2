@@ -3,10 +3,25 @@ package com.example.razorpay;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+/**
+ * Entry point for the Razorpay Demo Spring Boot application.
+ *
+ * <p>
+ * Bootstraps the Spring application context and starts the embedded web server.
+ * </p>
+ *
+ * @author Zain
+ * @since 1.0
+ */
 @SpringBootApplication
 public class RazorpayDemoApplication {
 
-    public static void main(String[] args) {
-        SpringApplication.run(RazorpayDemoApplication.class, args);
-    }
+	/**
+	 * Starts the Spring Boot application.
+	 *
+	 * @param args command-line arguments
+	 */
+	public static void main(String[] args) {
+		SpringApplication.run(RazorpayDemoApplication.class, args);
+	}
 }

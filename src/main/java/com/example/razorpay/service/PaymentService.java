@@ -19,10 +19,38 @@ import com.razorpay.RazorpayClient;
 import com.razorpay.RazorpayException;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Service responsible for managing Razorpay payment operations.
+ *
+ * <p>
+ * This service acts as the business layer between REST controllers, Razorpay
+ * SDK, and the persistence layer. It provides functionality for:
+ * </p>
+ * <ul>
+ * <li>Creating Razorpay orders</li>
+ * <li>Verifying payment signatures</li>
+ * <li>Managing payment records</li>
+ * <li>Handling payment failures</li>
+ * </ul>
+ *
+ * @author Zain
+ * @since 1.0
+ */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PaymentService {
+
+	/** Conversion factor from INR to paise. */
+	private static final int PAISE_MULTIPLIER = 100;
+
+	/** Razorpay order status returned after successful creation. */
+	private static final String CREATED_STATUS = "CREATED";
+
+	/** Error message used when a payment record cannot be found. */
+	private static final String PAYMENT_NOT_FOUND = "Payment not found.";
 
 	private final RazorpayClient razorpayClient;
 	private final PaymentOrderRepository paymentOrderRepository;
@@ -33,89 +61,138 @@ public class PaymentService {
 	@Value("${razorpay.key.secret}")
 	private String keySecret;
 
+	private static final String AMOUNT = "amount";
+	private static final String CURRENCY = "currency";
+	private static final String RECEIPT = "receipt";
+
 	/**
-	 * Creates an order on Razorpay's side. This MUST happen before Checkout.js is
-	 * opened on the frontend - Razorpay requires a valid order_id to initiate
-	 * payment. Amount must be converted to the smallest currency unit (paise for
-	 * INR): 1 INR = 100 paise.
+	 * Creates a new payment order in Razorpay and stores the corresponding payment
+	 * record in the local database.
+	 *
+	 * <p>
+	 * Razorpay expects the payment amount in the smallest currency unit (paise for
+	 * INR). Therefore, the amount provided by the client is converted from rupees
+	 * to paise before creating the order.
+	 * </p>
+	 *
+	 * @param request payment order request
+	 * @return created order details
+	 * @throws RazorpayException if Razorpay fails to create the order
 	 */
 	public OrderResponse createOrder(OrderRequest request) throws RazorpayException {
-		long amountInPaise = Math.round(request.getAmount() * 100);
+		long amountInPaise = Math.round(request.getAmount() * PAISE_MULTIPLIER);
 
-		JSONObject orderRequestJson = new JSONObject();
-		orderRequestJson.put("amount", amountInPaise);
-		orderRequestJson.put("currency", request.getCurrency());
-		orderRequestJson.put("receipt", request.getReceipt());
-		// "1" auto-captures the payment as soon as authorization succeeds (recommended
-		// for most cases).
-		// Use "0" if you want to manually capture later (e.g. after fraud checks).
-		orderRequestJson.put("payment_capture", 1);
+		JSONObject orderRequest = new JSONObject();
+		orderRequest.put(AMOUNT, amountInPaise);
+		orderRequest.put(CURRENCY, request.getCurrency());
+		orderRequest.put(RECEIPT, request.getReceipt());
+		orderRequest.put("payment_capture", 1);
 
-		Order order = razorpayClient.orders.create(orderRequestJson);
+		log.info("Creating Razorpay order for receipt={}", request.getReceipt());
 
-		PaymentOrder entity = new PaymentOrder();
-		entity.setRazorpayOrderId(order.get("id"));
-		entity.setAmount(amountInPaise);
-		entity.setCurrency(request.getCurrency());
-		entity.setReceipt(request.getReceipt());
-		entity.setStatus(PaymentStatus.CREATED);
-		paymentOrderRepository.save(entity);
+		Order order = razorpayClient.orders.create(orderRequest);
 
-		return new OrderResponse(order.get("id"), amountInPaise, request.getCurrency(), request.getReceipt(), "CREATED",
-				keyId);
+		PaymentOrder paymentOrder = new PaymentOrder();
+		paymentOrder.setRazorpayOrderId(order.get("id"));
+		paymentOrder.setAmount(amountInPaise);
+		paymentOrder.setCurrency(request.getCurrency());
+		paymentOrder.setReceipt(request.getReceipt());
+		paymentOrder.setStatus(PaymentStatus.CREATED);
+
+		paymentOrderRepository.save(paymentOrder);
+
+		return new OrderResponse(order.get("id"), amountInPaise, request.getCurrency(), request.getReceipt(),
+				CREATED_STATUS, keyId);
 	}
 
 	/**
-	 * Verifies the signature returned by Razorpay Checkout in the browser's success
-	 * handler. Formula per Razorpay docs: HMAC_SHA256(order_id + "|" + payment_id,
-	 * key_secret) This is a client-side convenience check ONLY. The webhook
-	 * (server-to-server) is the authoritative confirmation and must always be
-	 * relied on for fulfilling orders.
+	 * Verifies the payment signature returned by Razorpay Checkout.
+	 *
+	 * <p>
+	 * Signature verification ensures the payment response originated from Razorpay
+	 * and has not been tampered with.
+	 * </p>
+	 *
+	 * @param request payment verification request
+	 * @return {@code true} if the signature is valid; otherwise {@code false}
 	 */
 	public boolean verifyPaymentSignature(PaymentVerificationRequest request) {
-
 		String payload = request.getRazorpayOrderId() + "|" + request.getRazorpayPaymentId();
-
 		return SignatureUtil.verifySignature(payload, request.getRazorpaySignature(), keySecret);
 	}
 
+	/** Retrieves all payment records. */
 	public List<PaymentOrder> getAllPayments() {
 		return paymentOrderRepository.findAll();
 	}
 
+	/**
+	 * Retrieves a payment using the database identifier.
+	 *
+	 * @param id payment ID
+	 * @return payment record
+	 * @throws RuntimeException if the payment does not exist
+	 */
 	public PaymentOrder getPaymentById(Long id) {
-		return paymentOrderRepository.findById(id).orElseThrow(() -> new RuntimeException("Payment not found"));
+		return paymentOrderRepository.findById(id).orElseThrow(() -> new RuntimeException(PAYMENT_NOT_FOUND));
 	}
 
+	/**
+	 * Retrieves a payment using the Razorpay payment ID.
+	 *
+	 * @param paymentId Razorpay payment ID
+	 * @return payment record
+	 */
 	public PaymentOrder getPaymentByPaymentId(String paymentId) {
 		return paymentOrderRepository.findByRazorpayPaymentId(paymentId)
-				.orElseThrow(() -> new RuntimeException("Payment not found"));
+				.orElseThrow(() -> new RuntimeException(PAYMENT_NOT_FOUND));
 	}
 
+	/**
+	 * Retrieves a payment using the Razorpay order ID.
+	 *
+	 * @param orderId Razorpay order ID
+	 * @return payment record
+	 */
 	public PaymentOrder getPaymentByOrderId(String orderId) {
 		return paymentOrderRepository.findByRazorpayOrderId(orderId)
-				.orElseThrow(() -> new RuntimeException("Payment not found"));
+				.orElseThrow(() -> new RuntimeException(PAYMENT_NOT_FOUND));
 	}
 
+	/**
+	 * Updates a payment record when a payment failure is reported.
+	 *
+	 * <p>
+	 * If the corresponding payment order exists, its status and failure details are
+	 * updated using the information received from Razorpay.
+	 * </p>
+	 *
+	 * @param request payment failure request
+	 */
 	public void updateFailedPayment(PaymentFailureRequest request) {
+		paymentOrderRepository.findByRazorpayOrderId(request.getRazorpayOrderId()).ifPresentOrElse(
+				order -> updateFailureDetails(order, request),
+				() -> log.warn("Payment order not found for Razorpay order ID: {}", request.getRazorpayOrderId()));
+	}
 
-		paymentOrderRepository.findByRazorpayOrderId(request.getRazorpayOrderId()).ifPresent(order -> {
+	/**
+	 * Updates the payment entity with failure details.
+	 *
+	 * @param order   existing payment order
+	 * @param request payment failure information
+	 */
+	private void updateFailureDetails(PaymentOrder order, PaymentFailureRequest request) {
+		order.setStatus(PaymentStatus.FAILED);
+		order.setRazorpayPaymentId(request.getRazorpayPaymentId());
+		order.setFailureCode(request.getErrorCode());
+		order.setFailureReason(request.getErrorDescription());
+		order.setFailureSource(request.getErrorSource());
+		order.setFailureStep(request.getErrorStep());
+		order.setFailureReasonCode(request.getErrorReason());
 
-			order.setStatus(PaymentStatus.FAILED);
+		paymentOrderRepository.save(order);
 
-			order.setRazorpayPaymentId(request.getRazorpayPaymentId());
-
-			order.setFailureCode(request.getErrorCode());
-
-			order.setFailureReason(request.getErrorDescription());
-
-			order.setFailureSource(request.getErrorSource());
-
-			order.setFailureStep(request.getErrorStep());
-
-			paymentOrderRepository.save(order);
-
-		});
-
+		log.info("Payment marked as FAILED. orderId={}, paymentId={}", order.getRazorpayOrderId(),
+				order.getRazorpayPaymentId());
 	}
 }

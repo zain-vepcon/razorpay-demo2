@@ -1,38 +1,64 @@
 package com.example.razorpay.model;
 
-import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
-
 import java.time.Instant;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+/**
+ * Entity representing a Razorpay webhook event.
+ *
+ * <p>
+ * Stores incoming webhook payloads for auditing, signature validation,
+ * duplicate detection, and troubleshooting.
+ * </p>
+ *
+ * @author Zain
+ * @since 1.0
+ */
 @Entity
 @Table(name = "webhook_events")
 @Getter
 @Setter
+@NoArgsConstructor
 public class WebhookEvent {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	private Long id;
 
-    /** Razorpay's x-razorpay-event-id header - used to de-duplicate retried webhooks */
-    @Column(unique = true)
-    private String eventId;
+	/** Unique Razorpay webhook event identifier. */
+	@Column(unique = true)
+	private String eventId;
 
-    /** e.g. payment.captured, payment.failed, order.paid, refund.processed */
-    private String eventType;
+	/** Razorpay webhook event type. */
+	private String eventType;
 
-    @Lob
-    private String rawPayload;
+	/** Original webhook payload. */
+	@Lob
+	private String rawPayload;
 
-    private boolean signatureValid;
+	/** Indicates whether the webhook signature was successfully validated. */
+	private boolean signatureValid;
 
-    @Column(nullable = false, updatable = false)
-    private Instant receivedAt;
+	/** Timestamp when the webhook was received. */
+	@Column(nullable = false, updatable = false)
+	private Instant receivedAt;
 
-    @PrePersist
-    void onCreate() {
-        receivedAt = Instant.now();
-    }
+	/**
+	 * Sets the received timestamp before persisting the entity.
+	 */
+	@PrePersist
+	protected void onCreate() {
+		receivedAt = Instant.now();
+	}
 }

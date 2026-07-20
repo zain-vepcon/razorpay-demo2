@@ -7,6 +7,19 @@ import org.springframework.context.annotation.Configuration;
 import com.razorpay.RazorpayClient;
 import com.razorpay.RazorpayException;
 
+/**
+ * Configuration class for Razorpay client initialization.
+ *
+ * <p>
+ * Creates and exposes a singleton {@link RazorpayClient} bean using the API
+ * credentials configured in the application properties. The client is used to
+ * interact with Razorpay services such as Orders, Payments, Refunds, and
+ * Webhooks.
+ * </p>
+ *
+ * @author Zain
+ * @since 1.0
+ */
 @Configuration
 public class RazorpayConfig {
 
@@ -17,12 +30,19 @@ public class RazorpayConfig {
 	private String keySecret;
 
 	/**
-	 * RazorpayClient is the official SDK client used to talk to the Razorpay
-	 * Orders/Payments API. Get test-mode keys from: Razorpay Dashboard -> Settings
-	 * -> API Keys (make sure "Test Mode" toggle is ON).
+	 * Creates the Razorpay SDK client.
+	 *
+	 * <p>
+	 * API credentials are injected from the application configuration. Ensure that
+	 * valid Test or Live API keys are configured before starting the application.
+	 * </p>
+	 *
+	 * @return configured {@link RazorpayClient}
+	 * @throws RazorpayException if the client cannot be initialized
 	 */
 	@Bean
-	RazorpayClient razorpayClient() throws RazorpayException {
+	public RazorpayClient razorpayClient() throws RazorpayException {
+
 		return new RazorpayClient(keyId, keySecret);
 	}
 }

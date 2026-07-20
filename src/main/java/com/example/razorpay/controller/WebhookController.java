@@ -1,9 +1,5 @@
 package com.example.razorpay.controller;
 
-import com.example.razorpay.service.WebhookService;
-import com.example.razorpay.util.SignatureUtil;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -14,63 +10,83 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.razorpay.service.WebhookService;
+import com.example.razorpay.util.SignatureUtil;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+/**
+ * REST controller for handling Razorpay webhook events.
+ *
+ * <p>
+ * Receives webhook notifications from Razorpay, validates the webhook
+ * signature, prevents duplicate event processing, records incoming events, and
+ * delegates business processing to the webhook service.
+ * </p>
+ *
+ * @author Zain
+ * @since 1.0
+ */
 @Slf4j
 @RestController
 @RequestMapping("/api/webhooks")
 @RequiredArgsConstructor
 public class WebhookController {
 
-    private final WebhookService webhookService;
+	private final WebhookService webhookService;
+	private static final String UNKNOWN_EVENT = "unknown";
 
-    @Value("${razorpay.webhook.secret}")
-    private String webhookSecret;
+	@Value("${razorpay.webhook.secret}")
+	private String webhookSecret;
 
-    /**
-     * Razorpay webhook endpoint. Configure this URL in:
-     * Dashboard -> Settings -> Webhooks -> Add New Webhook
-     * e.g. https://<your-ngrok-domain>/api/webhooks/razorpay
-     *
-     * IMPORTANT:
-     * 1. The raw request body (untouched, exact bytes as sent) must be used to compute the
-     *    signature - NOT a re-serialized version of the parsed JSON. Spring binds it here as
-     *    a String specifically to preserve the exact bytes.
-     * 2. Always return 2xx quickly. If you return non-2xx or time out, Razorpay will retry
-     *    the webhook (with backoff) - hence the idempotency check using x-razorpay-event-id.
-     * 3. Do any slow work (emails, external calls) asynchronously after acknowledging receipt.
-     */
-    @PostMapping("/razorpay")
-    public ResponseEntity<String> handleWebhook(
-            @RequestBody String rawPayload,
-            @RequestHeader(value = "X-Razorpay-Signature", required = false) String signature,
-            @RequestHeader(value = "X-Razorpay-Event-Id", required = false) String eventId) {
+	/**
+	 * Processes incoming Razorpay webhook events.
+	 *
+	 * <p>
+	 * The request signature is verified using the configured webhook secret before
+	 * processing the payload. Duplicate events are ignored using the Razorpay event
+	 * ID to ensure idempotent processing.
+	 * </p>
+	 *
+	 * @param rawPayload raw webhook payload
+	 * @param signature  Razorpay webhook signature
+	 * @param eventId    unique Razorpay event identifier
+	 * @return webhook processing status
+	 */
+	@PostMapping("/razorpay")
+	public ResponseEntity<String> handleWebhook(@RequestBody String rawPayload,
+			@RequestHeader(value = "X-Razorpay-Signature", required = false) String signature,
+			@RequestHeader(value = "X-Razorpay-Event-Id", required = false) String eventId) {
 
-        if (signature == null) {
-            log.warn("Webhook rejected: missing X-Razorpay-Signature header");
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Missing signature header");
-        }
-        log.info("Webhook Secret = {}", webhookSecret);
+		if (signature == null || signature.isBlank()) {
+			log.warn("Webhook rejected: missing X-Razorpay-Signature header");
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Missing signature header");
+		}
+		log.info("Webhook Secret = {}", webhookSecret);
 
-        boolean signatureValid = SignatureUtil.verifySignature(rawPayload, signature, webhookSecret);
+		boolean signatureValid = SignatureUtil.verifySignature(rawPayload, signature, webhookSecret);
 
-        JSONObject json = new JSONObject(rawPayload);
-        String eventType = json.optString("event", "unknown");
+		JSONObject json = new JSONObject(rawPayload);
+		String eventType = json.optString("event", UNKNOWN_EVENT);
 
-        if (!signatureValid) {
-            log.warn("Webhook signature verification FAILED for event={} eventId={}", eventType, eventId);
-            webhookService.recordEvent(eventId, eventType, rawPayload, false);
-            // 400 tells Razorpay something is wrong; do not process the payload as trusted.
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid signature");
-        }
+		if (!signatureValid) {
+			log.warn("Webhook signature validation failed. eventType={}, eventId={}", eventType, eventId);
+			webhookService.recordEvent(eventId, eventType, rawPayload, false);
+			// 400 tells Razorpay something is wrong; do not process the payload as trusted.
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid signature");
+		}
 
-        if (webhookService.isDuplicate(eventId)) {
-            log.info("Duplicate webhook ignored: eventId={} type={}", eventId, eventType);
-            // Still return 200 - this is a retry of something we already processed successfully.
-            return ResponseEntity.ok("Duplicate event acknowledged");
-        }
+		if (webhookService.isDuplicate(eventId)) {
+			log.info("Duplicate webhook ignored: eventId={} type={}", eventId, eventType);
+			// Still return 200 - this is a retry of something we already processed
+			// successfully.
+			return ResponseEntity.ok("Duplicate event acknowledged");
+		}
 
-        webhookService.recordEvent(eventId, eventType, rawPayload, true);
-        webhookService.process(eventType, json);
+		webhookService.recordEvent(eventId, eventType, rawPayload, true);
+		webhookService.process(eventType, json);
 
-        return ResponseEntity.ok("Webhook processed");
-    }
+		return ResponseEntity.ok("Webhook processed");
+	}
 }

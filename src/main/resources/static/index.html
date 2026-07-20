@@ -2,14 +2,19 @@
 <html lang="en">
 
 <head>
-
+<!-- ============================================================
+         ===============   Meta & Page Setup   ======================
+         ============================================================ -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Razorpay Payment Demo</title>
 
+<!-- Razorpay Checkout Script -->
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
+<!-- ============================================================
+         ===============   Styling   ================================
+         ============================================================ -->
 <style>
 body {
 	font-family: Arial, Helvetica, sans-serif;
@@ -53,259 +58,157 @@ button:hover {
 	font-weight: bold;
 }
 </style>
-
 </head>
 
 <body>
-
+	<!-- ============================================================
+         ===============   UI Container   ===========================
+         ============================================================ -->
 	<div class="container">
-
 		<h2>Spring Boot + Razorpay Demo</h2>
-
 		<h3>₹500</h3>
-
 		<button onclick="makePayment()">Pay ₹500</button>
-
 		<div id="result"></div>
 		<div id="error"></div>
-
 	</div>
 
+	<!-- ============================================================
+         ===============   Razorpay Integration   ===================
+         ============================================================ -->
 	<script>
+        const BASE_URL = "http://localhost:8080";
 
-const BASE_URL = "http://localhost:8080";
+        /**
+         * Step 1: Create Razorpay Order via backend API
+         */
+        async function makePayment() {
+            document.getElementById("result").innerHTML = "";
+            document.getElementById("error").innerHTML = "";
 
-async function makePayment(){
+            try {
+                console.log("Creating Order...");
 
-    document.getElementById("result").innerHTML="";
-    document.getElementById("error").innerHTML="";
+                const response = await fetch(BASE_URL + "/api/payments/create-order", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        amount: 500,
+                        currency: "INR",
+                        receipt: "receipt_" + Date.now()
+                    })
+                });
 
-    try{
+                const data = await response.json();
+                console.log(data);
 
-        console.log("Creating Order...");
-
-        const response = await fetch(
-            BASE_URL + "/api/payments/create-order",
-            {
-                method:"POST",
-
-                headers:{
-                    "Content-Type":"application/json"
-                },
-
-                body:JSON.stringify({
-
-                    amount:500,
-
-                    currency:"INR",
-
-                    receipt:"receipt_"+Date.now()
-
-                })
-
-            });
-
-        const data = await response.json();
-
-        console.log(data);
-
-        if(!data.success){
-
-            alert(data.message);
-            return;
-        }
-
-        const order = data.data;
-
-        const options={
-
-            key:order.keyId,
-
-            amount:order.amount,
-
-            currency:order.currency,
-
-            order_id:order.razorpayOrderId,
-
-            name:"Payment Demo",
-
-            description:"Spring Boot Razorpay Demo",
-
-            prefill:{
-                name:"Test User",
-                email:"test@test.com",
-                contact:"9999999999"
-            },
-
-            theme:{
-                color:"#3399cc"
-            },
-
-            handler:async function(response){
-
-//                 console.log("PAYMENT SUCCESS");
-//                 console.log(response);
-
-                await verifyPayment(response);
-
-            },
-
-            modal:{
-
-                ondismiss:function(){
-
-                    console.log("Checkout Closed");
-
+                if (!data.success) {
+                    document.getElementById("error").textContent = data.message;
+                    return;
                 }
 
+                const order = data.data;
+
+                /**
+                 * Step 2: Configure Razorpay Checkout Options
+                 */
+                const options = {
+                    key: order.keyId,
+                    amount: order.amount,
+                    currency: order.currency,
+                    order_id: order.razorpayOrderId,
+                    name: "Payment Demo",
+                    description: "Spring Boot Razorpay Demo",
+                    prefill: {
+                        name: "Test User",
+                        email: "test@test.com",
+                        contact: "9999999999"
+                    },
+                    theme: { color: "#3399cc" },
+                    handler: async function (response) {
+                        await verifyPayment(response);
+                    },
+                    modal: {
+                        ondismiss: function () {
+                            console.log("Checkout Closed");
+                        }
+                    }
+                };
+
+                const razorpay = new Razorpay(options);
+
+                /**
+                 * Step 3: Handle Payment Failure
+                 */
+                razorpay.on("payment.failed", async function (response) {
+                    console.log("PAYMENT FAILED");
+                    console.log(response);
+
+                    document.getElementById("error").innerHTML = response.error.description;
+                    await paymentFailed(response, order.razorpayOrderId);
+                });
+
+                razorpay.open();
+            } catch (error) {
+                console.error(error);
+                alert("Unable to create order.");
             }
-
-        };
-
-        const razorpay=new Razorpay(options);
-
-        razorpay.on("payment.failed",async function(response){
-
-            console.log("PAYMENT FAILED");
-
-            console.log(response);
-
-            document.getElementById("error").innerHTML=
-            response.error.description;
-
-            await paymentFailed(response,order.razorpayOrderId);
-
-        });
-
-        razorpay.open();
-
-    }
-
-    catch(error){
-
-        console.error(error);
-
-        alert("Unable to create order.");
-
-    }
-
-}
-
-async function verifyPayment(response){
-
-    try{
-
-        const verifyResponse=await fetch(
-
-            BASE_URL+"/api/payments/verify",
-
-            {
-
-                method:"POST",
-
-                headers:{
-                    "Content-Type":"application/json"
-                },
-
-                body:JSON.stringify({
-
-                    razorpayOrderId:response.razorpay_order_id,
-
-                    razorpayPaymentId:response.razorpay_payment_id,
-
-                    razorpaySignature:response.razorpay_signature
-
-                })
-
-            });
-
-        const result=await verifyResponse.json();
-
-        console.log(result);
-
-        if(result.success){
-
-            document.getElementById("result").innerHTML=
-            "Payment Verified Successfully.";
-
-        }
-        else{
-
-            document.getElementById("error").innerHTML=
-            result.message;
-
         }
 
-    }
+        /**
+         * Step 4: Verify Payment via backend API
+         */
+        async function verifyPayment(response) {
+            try {
+                const verifyResponse = await fetch(BASE_URL + "/api/payments/verify", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        razorpayOrderId: response.razorpay_order_id,
+                        razorpayPaymentId: response.razorpay_payment_id,
+                        razorpaySignature: response.razorpay_signature
+                    })
+                });
 
-    catch(error){
+                const result = await verifyResponse.json();
+                console.log(result);
 
-        console.error(error);
+                if (result.success) {
+                    document.getElementById("result").innerHTML = "Payment Verified Successfully.";
+                } else {
+                    document.getElementById("error").innerHTML = result.message;
+                }
+            } catch (error) {
+                console.error(error);
+            }
+        }
 
-    }
+        /**
+         * Step 5: Send Payment Failure Details to backend
+         */
+        async function paymentFailed(response, orderId) {
+            try {
+                console.log("Sending failure details...");
 
-}
+                const res = await fetch(BASE_URL + "/api/payments/failed", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        razorpayOrderId: orderId,
+                        razorpayPaymentId: response.error.metadata.payment_id,
+                        errorCode: response.error.code,
+                        errorDescription: response.error.description,
+                        errorSource: response.error.source,
+                        errorStep: response.error.step,
+                        errorReason: response.error.reason
+                    })
+                });
 
-async function paymentFailed(response,orderId){
-
-    try{
-
-        console.log("Sending failure details...");
-
-        const res=await fetch(
-
-            BASE_URL+"/api/payments/failed",
-
-            {
-
-                method:"POST",
-
-                headers:{
-                    "Content-Type":"application/json"
-                },
-
-                body: JSON.stringify({
-
-                    razorpayOrderId: orderId,
-
-                    razorpayPaymentId:
-                        response.error.metadata.payment_id,
-
-                    errorCode:
-                        response.error.code,
-
-                    errorDescription:
-                        response.error.description,
-
-                    errorSource:
-                        response.error.source,
-
-                    errorStep:
-                        response.error.step,
-
-                    errorReason:
-                        response.error.reason
-
-                })
-
-            });
-
-        const text=await res.text();
-
-        console.log(text);
-
-    }
-
-    catch(error){
-
-        console.error(error);
-
-    }
-
-}
-
-</script>
-
+                const text = await res.text();
+                console.log(text);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+    </script>
 </body>
-
 </html>
