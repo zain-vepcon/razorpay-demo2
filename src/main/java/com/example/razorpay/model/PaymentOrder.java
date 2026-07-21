@@ -1,6 +1,7 @@
 package com.example.razorpay.model;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import com.example.razorpay.enums.PaymentStatus;
 
@@ -60,34 +61,35 @@ public class PaymentOrder {
 	@Enumerated(EnumType.STRING)
 	private PaymentStatus status;
 
-	/** Failure code returned by Razorpay. */
-	private String failureCode;
-
 	/** Failure description. */
 	private String failureReason;
 
-	/** Failure source. */
-	private String failureSource;
-
-	/** Processing step where the failure occurred. */
-	private String failureStep;
-
-	/** Failure reason code. */
-	private String failureReasonCode;
-
 	/** Record creation timestamp. */
 	@Column(nullable = false, updatable = false)
-	private Instant createdAt;
+	private LocalDateTime createdAt;
 
 	/** Record last update timestamp. */
-	private Instant updatedAt;
+
+	private LocalDateTime updatedAt;
+
+	@Column(nullable = false)
+	private String customerName;
+
+	@Column(nullable = false)
+	private String customerEmail;
+
+	@Column(nullable = false)
+	private String customerPhone;
+
+	@Column(name = "payment_created_at")
+	private LocalDateTime paymentCreatedAt;
 
 	/**
 	 * Initializes timestamps before entity persistence.
 	 */
 	@PrePersist
-	protected void onCreate() {
-		Instant now = Instant.now();
+	public void onCreate() {
+		LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Kolkata"));
 		createdAt = now;
 		updatedAt = now;
 	}
@@ -96,7 +98,8 @@ public class PaymentOrder {
 	 * Updates the modification timestamp before entity update.
 	 */
 	@PreUpdate
-	protected void onUpdate() {
-		updatedAt = Instant.now();
+	public void onUpdate() {
+		updatedAt = LocalDateTime.now(ZoneId.of("Asia/Kolkata"));
 	}
+
 }

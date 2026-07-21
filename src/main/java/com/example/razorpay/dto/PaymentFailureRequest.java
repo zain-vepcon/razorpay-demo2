@@ -29,25 +29,7 @@ public class PaymentFailureRequest {
 	 */
 	private String razorpayPaymentId;
 
-	/**
-	 * Razorpay error code.
-	 */
-	private String errorCode;
-
-	/**
-	 * Human-readable error description.
-	 */
-	private String errorDescription;
-
-	/**
-	 * Source of the error.
-	 */
-	private String errorSource;
-
-	/**
-	 * Payment step where the failure occurred.
-	 */
-	private String errorStep;
+	private String failureReason;
 
 	/**
 	 * Reason for payment failure.

@@ -10,8 +10,9 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.razorpay.security.WebhookSignatureValidator;
+import com.example.razorpay.service.AsyncWebhookService;
 import com.example.razorpay.service.WebhookService;
-import com.example.razorpay.util.SignatureUtil;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,8 @@ public class WebhookController {
 
 	private final WebhookService webhookService;
 	private static final String UNKNOWN_EVENT = "unknown";
+	private final WebhookSignatureValidator signatureValidator;
+	private final AsyncWebhookService asyncWebhookService;
 
 	@Value("${razorpay.webhook.secret}")
 	private String webhookSecret;
@@ -54,7 +57,7 @@ public class WebhookController {
 	 * @param eventId    unique Razorpay event identifier
 	 * @return webhook processing status
 	 */
-	@PostMapping("/razorpay")
+	@PostMapping(value = "/razorpay", consumes = "application/json")
 	public ResponseEntity<String> handleWebhook(@RequestBody String rawPayload,
 			@RequestHeader(value = "X-Razorpay-Signature", required = false) String signature,
 			@RequestHeader(value = "X-Razorpay-Event-Id", required = false) String eventId) {
@@ -63,16 +66,16 @@ public class WebhookController {
 			log.warn("Webhook rejected: missing X-Razorpay-Signature header");
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Missing signature header");
 		}
-		log.info("Webhook Secret = {}", webhookSecret);
+		log.debug("Webhook validation started");
 
-		boolean signatureValid = SignatureUtil.verifySignature(rawPayload, signature, webhookSecret);
+		boolean signatureValid = signatureValidator.isValid(rawPayload, signature, webhookSecret);
 
 		JSONObject json = new JSONObject(rawPayload);
 		String eventType = json.optString("event", UNKNOWN_EVENT);
 
 		if (!signatureValid) {
 			log.warn("Webhook signature validation failed. eventType={}, eventId={}", eventType, eventId);
-			webhookService.recordEvent(eventId, eventType, rawPayload, false);
+			webhookService.recordEvent(eventId, eventType, rawPayload, false, json);
 			// 400 tells Razorpay something is wrong; do not process the payload as trusted.
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid signature");
 		}
@@ -84,8 +87,8 @@ public class WebhookController {
 			return ResponseEntity.ok("Duplicate event acknowledged");
 		}
 
-		webhookService.recordEvent(eventId, eventType, rawPayload, true);
-		webhookService.process(eventType, json);
+		webhookService.recordEvent(eventId, eventType, rawPayload, true, json);
+		asyncWebhookService.processAsync(eventType, json);
 
 		return ResponseEntity.ok("Webhook processed");
 	}

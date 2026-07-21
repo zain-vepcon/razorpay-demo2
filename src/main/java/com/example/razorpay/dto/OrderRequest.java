@@ -1,6 +1,7 @@
 package com.example.razorpay.dto;
 
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
@@ -41,4 +42,20 @@ public class OrderRequest {
 	 */
 	@NotBlank(message = "Receipt is required")
 	private String receipt;
+
+	/**
+	 * customer Name
+	 */
+	@NotBlank(message = "Name is required")
+	private String customerName;
+
+	/**
+	 * customer Email
+	 */
+	@Email
+	@NotBlank(message = "Email is required")
+	private String customerEmail;
+
+	@NotBlank(message = "Phone Number is required")
+	private String customerPhone;
 }

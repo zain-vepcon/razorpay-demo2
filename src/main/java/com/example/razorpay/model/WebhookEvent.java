@@ -1,6 +1,7 @@
 package com.example.razorpay.model;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -53,6 +54,9 @@ public class WebhookEvent {
 	/** Timestamp when the webhook was received. */
 	@Column(nullable = false, updatable = false)
 	private Instant receivedAt;
+	
+	@Column(name = "payment_created_at")
+	private LocalDateTime CreatedAt;
 
 	/**
 	 * Sets the received timestamp before persisting the entity.

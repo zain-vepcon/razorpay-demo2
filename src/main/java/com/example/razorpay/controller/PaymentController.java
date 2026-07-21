@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.razorpay.dto.ApiResponse;
 import com.example.razorpay.dto.OrderRequest;
 import com.example.razorpay.dto.OrderResponse;
+import com.example.razorpay.dto.PaymentFailureRequest;
 import com.example.razorpay.dto.PaymentVerificationRequest;
 import com.example.razorpay.model.PaymentOrder;
 import com.example.razorpay.service.PaymentService;
@@ -149,5 +150,13 @@ public class PaymentController {
 		PaymentOrder payment = paymentService.getPaymentByOrderId(orderId);
 
 		return ResponseEntity.ok(ApiResponse.ok(PAYMENT_FETCHED, payment));
+	}
+
+	@PostMapping("/failed")
+	public ResponseEntity<ApiResponse<Void>> paymentFailed(@RequestBody @Valid PaymentFailureRequest request) {
+
+		paymentService.updateFailedPayment(request);
+
+		return ResponseEntity.ok(ApiResponse.ok("Payment failure recorded", null));
 	}
 }

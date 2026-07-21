@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.example.razorpay.dto.ApiResponse;
 
@@ -16,9 +17,17 @@ import com.example.razorpay.dto.ApiResponse;
  * Global exception handler for REST APIs.
  *
  * <p>
- * Centralizes exception handling across all controllers and returns
- * standardized API responses for validation and unexpected errors.
+ * Centralizes exception handling across controllers and provides consistent
+ * error responses.
  * </p>
+ *
+ * Handles:
+ *
+ * <ul>
+ * <li>Validation failures</li>
+ * <li>Payment not found errors</li>
+ * <li>Unexpected application errors</li>
+ * </ul>
  *
  * @author Zain
  * @since 1.0
@@ -27,6 +36,20 @@ import com.example.razorpay.dto.ApiResponse;
 public class GlobalExceptionHandler {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+	/**
+	 * Handles payment not found scenarios.
+	 *
+	 * @param exception payment exception
+	 * @return 404 response
+	 */
+	@ExceptionHandler(PaymentNotFoundException.class)
+	public ResponseEntity<ApiResponse<Object>> handlePaymentNotFound(PaymentNotFoundException exception) {
+
+		LOGGER.warn("Payment not found: {}", exception.getMessage());
+
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.fail(exception.getMessage()));
+	}
 
 	/**
 	 * Handles bean validation failures.
@@ -59,4 +82,22 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 				.body(ApiResponse.fail("An unexpected error occurred."));
 	}
+
+	/**
+	 * Handles missing static resources like favicon.ico
+	 * 
+	 * @param exception
+	 * @return
+	 */
+
+	@ExceptionHandler(NoResourceFoundException.class)
+	public ResponseEntity<Void> handleResourceNotFound(NoResourceFoundException exception) {
+
+		if ("favicon.ico".equals(exception.getResourcePath())) {
+			return ResponseEntity.notFound().build();
+		}
+
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+	}
+
 }

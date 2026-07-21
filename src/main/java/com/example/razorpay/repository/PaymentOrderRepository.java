@@ -3,7 +3,6 @@ package com.example.razorpay.repository;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 
 import com.example.razorpay.model.PaymentOrder;
 
@@ -18,7 +17,7 @@ import com.example.razorpay.model.PaymentOrder;
  * @author Zain
  * @since 1.0
  */
-@Repository
+//@Repository
 public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, Long> {
 
 	/**

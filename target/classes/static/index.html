@@ -94,12 +94,17 @@ button:hover {
                     body: JSON.stringify({
                         amount: 500,
                         currency: "INR",
-                        receipt: "receipt_" + Date.now()
+                        receipt: "receipt_" + Date.now(),
+                        customerName:"Mohammed Zain Ul Abideen",
+                        customerEmail:"mohammed.zain@vepconsoftsystems.com",
+                        customerPhone: "8019242936"
                     })
                 });
 
                 const data = await response.json();
                 console.log(data);
+                console.log(data.data);
+                console.log(data.data.keyId);
 
                 if (!data.success) {
                     document.getElementById("error").textContent = data.message;
@@ -119,9 +124,9 @@ button:hover {
                     name: "Payment Demo",
                     description: "Spring Boot Razorpay Demo",
                     prefill: {
-                        name: "Test User",
-                        email: "test@test.com",
-                        contact: "9999999999"
+                        name: "ZAIN",
+                        email: "mzainulabideen1991@gmail.com",
+                        contact: "8019242936"
                     },
                     theme: { color: "#3399cc" },
                     handler: async function (response) {
@@ -191,15 +196,11 @@ button:hover {
 
                 const res = await fetch(BASE_URL + "/api/payments/failed", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json" },	
                     body: JSON.stringify({
                         razorpayOrderId: orderId,
                         razorpayPaymentId: response.error.metadata.payment_id,
-                        errorCode: response.error.code,
-                        errorDescription: response.error.description,
-                        errorSource: response.error.source,
-                        errorStep: response.error.step,
-                        errorReason: response.error.reason
+                        failureReason: response.error.description
                     })
                 });
 
