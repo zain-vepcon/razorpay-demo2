@@ -1,3 +1,481 @@
+Razorpay Payment Gateway Integration with Kafka, Webhooks & Spring Boot
+<p align="center"> <img src="https://img.shields.io/badge/Java-17-orange.svg"/> <img src="https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen.svg"/> <img src="https://img.shields.io/badge/Apache-Kafka-black.svg"/> <img src="https://img.shields.io/badge/MySQL-8.0-blue.svg"/> <img src="https://img.shields.io/badge/Razorpay-Test%20Mode-3395FF.svg"/> <img src="https://img.shields.io/badge/Maven-Build-red.svg"/> </p>
+Razorpay Payment Gateway Integration
+
+A production-style payment processing system built using Spring Boot, Razorpay Test Mode, Apache Kafka, MySQL, and Webhook-based Event Driven Architecture.
+
+The application demonstrates a complete payment lifecycle from order creation to asynchronous event processing using Kafka consumers.
+
+Features
+Razorpay Order Creation
+Secure Payment Verification
+Webhook Signature Validation
+Kafka Event Publishing
+Event Driven Microservice Style Consumers
+Email Notification
+SMS Notification
+Audit Logging
+Analytics Processing
+MySQL Persistence
+Duplicate Webhook Protection
+Layered Architecture
+REST APIs
+Production-ready Logging
+Technology Stack
+Technology	Version
+Java	17
+Spring Boot	3.x
+Spring Security	JWT
+Apache Kafka	Latest
+MySQL	8.x
+Razorpay	Test Mode
+Maven	Latest
+Lombok	Latest
+Hibernate/JPA	Latest
+
+**Project Structure**
+razorpay-payment-system
+│
+├── controller
+│     ├── PaymentController
+│     └── WebhookController
+│
+├── service
+│     ├── PaymentService
+│     ├── WebhookService
+│     ├── KafkaProducerService
+│     ├── EmailService
+│     ├── SmsService
+│     └── AnalyticsService
+│
+├── client
+│     └── RazorpayOrderClient
+│
+├── kafka
+│     ├── Producer
+│     ├── EmailConsumer
+│     ├── SmsConsumer
+│     ├── AuditConsumer
+│     └── AnalyticsConsumer
+│
+├── entity
+│     ├── PaymentOrder
+│     ├── AuditLog
+│     └── WebhookEvent
+│
+├── repository
+│
+├── dto
+│
+├── config
+│
+├── util
+│
+└── resources
+      ├── application.properties
+      └── static/index.html
+      
+**Architecture**
+User
+   │
+   ▼
+Checkout Page
+   │
+   ▼
+Create Order API
+   │
+   ▼
+Razorpay Order Created
+   │
+   ▼
+Checkout Opens
+   │
+   ▼
+Payment Success
+   │
+   ▼
+Verify API
+   │
+   ▼
+Database Updated
+   │
+   ▼
+Razorpay Webhook
+   │
+   ▼
+Webhook Controller
+   │
+   ▼
+Webhook Service
+   │
+   ▼
+Kafka Producer
+   │
+   ▼
+payment-events Topic
+      │
+      ├────────► Email Consumer
+      │              └── Email Sent
+      │
+      ├────────► SMS Consumer
+      │              └── SMS Sent
+      │
+      ├────────► Audit Consumer
+      │              └── Audit Log Saved
+      │
+      └────────► Analytics Consumer
+                     └── Analytics Updated
+**Database Tables**
+payment_orders
+
+Stores payment information.
+
+id
+razorpay_order_id
+razorpay_payment_id
+receipt
+amount
+currency
+status
+customer_name
+customer_email
+customer_phone
+created_at
+updated_at
+webhook_events
+
+Stores received Razorpay webhook events.
+
+id
+event_id
+event_type
+payload
+processed
+created_at
+audit_log
+
+Stores payment audit records.
+
+id
+order_id
+payment_id
+event_type
+status
+amount
+receipt
+created_at
+APIs
+Create Order
+POST /api/payments/create-order
+
+Example
+
+{
+    "amount":500,
+    "currency":"INR"
+}
+Verify Payment
+POST /api/payments/verify
+Razorpay Webhook
+POST /api/webhooks/razorpay
+How to Run
+Step 1
+
+Clone Repository
+
+git clone https://github.com/<your-username>/<repository-name>.git
+cd <repository-name>
+Step 2
+
+Create MySQL Database
+
+CREATE DATABASE razorpaydb;
+Step 3
+
+Update application.properties
+
+spring.datasource.url=jdbc:mysql://localhost:3306/razorpaydb
+spring.datasource.username=root
+spring.datasource.password=yourpassword
+
+spring.jpa.hibernate.ddl-auto=update
+Step 4
+
+Configure Razorpay
+
+razorpay.key.id=rzp_test_xxxxxxxxx
+
+razorpay.key.secret=xxxxxxxxxxxxxxxx
+
+razorpay.webhook.secret=xxxxxxxxxxxxxxxx
+Step 5
+
+Configure Email
+
+spring.mail.host=smtp.gmail.com
+spring.mail.port=587
+spring.mail.username=your-email@gmail.com
+spring.mail.password=your-app-password
+
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.starttls.enable=true
+Step 6
+
+Start Zookeeper
+
+zookeeper-server-start.bat config/zookeeper.properties
+Step 7
+
+Start Kafka
+
+kafka-server-start.bat config/server.properties
+Step 8
+
+Create Kafka Topic
+
+kafka-topics.bat ^
+--create ^
+--topic payment-events ^
+--bootstrap-server localhost:9092 ^
+--partitions 1 ^
+--replication-factor 1
+
+Verify Topic
+
+kafka-topics.bat --list --bootstrap-server localhost:9092
+Step 9
+
+Expose Localhost Using ngrok
+
+ngrok http 8080
+
+Example
+
+https://abcd1234.ngrok-free.app
+Step 10
+
+Configure Razorpay Webhook
+
+Webhook URL
+
+https://abcd1234.ngrok-free.app/api/webhooks/razorpay
+
+Webhook Secret
+
+Same secret configured in application.properties
+
+Enable Events
+
+payment.authorized
+payment.captured
+payment.failed
+order.paid
+refund.created
+refund.processed
+Step 11
+
+Run Spring Boot Application
+
+Using Maven
+
+mvn spring-boot:run
+
+or
+
+Run
+
+RazorpayDemoApplication.java
+Step 12
+
+Open Browser
+
+http://localhost:8080
+Payment Flow
+User opens checkout page.
+Order is created in Razorpay.
+User completes payment.
+Payment is verified.
+Database is updated.
+Razorpay sends webhook.
+Webhook is validated.
+Kafka Producer publishes event.
+Kafka Topic distributes event.
+Consumers process the event independently.
+Email is sent.
+SMS is sent.
+Audit log is stored.
+Analytics are updated.
+Sample Console Output
+PAYMENT VERIFIED
+
+Webhook Received
+
+Signature Verified
+
+Publishing Event to Kafka
+
+EMAIL SENT
+
+SMS SENT
+
+AUDIT SAVED SUCCESSFULLY
+
+Analytics Updated
+Kafka Consumers
+Consumer	Responsibility
+Email Consumer	Sends payment confirmation email
+SMS Consumer	Sends payment confirmation SMS
+Audit Consumer	Stores audit records
+Analytics Consumer	Updates reporting metrics
+Future Enhancements
+Docker Support
+Kubernetes Deployment
+Redis Cache
+Prometheus Monitoring
+Grafana Dashboard
+Retry & Dead Letter Queue (DLQ)
+Payment Refund APIs
+Distributed Tracing
+CI/CD Pipeline
+Unit & Integration Tests
+Multi-tenant Payment Processing
+Author
+
+Zain
+
+Java Backend Developer
+
+Spring Boot • Kafka • MySQL • Razorpay • REST APIs
+
+License
+
+This project is intended for learning, demonstration, and portfolio purposes.
+
+
+
+
+ngrok http 8080 
+
+http://127.0.0.1:4040/
+
+http://localhost:8080/index.html
+
+https://dashboard.razorpay.com/app/website-app-settings/webhooks 
+
+Open CMD 1
+
+Start Zookeeper
+cd C:\kafka
+.\bin\windows\zookeeper-server-start.bat .\config\zookeeper.properties
+
+Start Kafka Broker
+Open CMD 2
+
+Verify Topic
+Open CMD 3
+
+cd C:\kafka
+.\bin\windows\kafka-topics.bat --bootstrap-server localhost:9092 --list
+
+****payment-events
+
+
+
+If not, create it
+
+.\bin\windows\kafka-topics.bat ^
+--create ^
+--topic payment-events ^
+--bootstrap-server localhost:9092 ^
+--partitions 1 ^
+--replication-factor 1
+
+final\
+
+Verify Kafka Topic (Optional)
+
+Open another CMD.
+
+Consume messages
+
+cd C:\kafka
+
+.\bin\windows\kafka-console-consumer.bat ^
+--bootstrap-server localhost:9092 ^
+--topic payment-events ^
+--from-beginning
+
+
+If You Want a Completely Fresh Test
+
+Stop Spring Boot.
+
+Delete old messages from Kafka by deleting the topic:
+
+.\bin\windows\kafka-topics.bat ^
+--bootstrap-server localhost:9092 ^
+--delete ^
+--topic payment-events
+
+Recreate it:
+
+.\bin\windows\kafka-topics.bat ^
+--create ^
+--bootstrap-server localhost:9092 ^
+--topic payment-events ^
+--partitions 1 ^
+--replication-factor 1
+
+
+Razorpay Checkout
+        │
+        ▼
+Payment Success
+        │
+        ▼
+Spring Boot Controller
+        │
+        ▼
+Save payment_orders
+        │
+        ▼
+Publish PaymentEvent
+        │
+        ▼
+         Kafka
+        │
+ ┌──────┼───────────────┬───────────────┬──────────────┬─────────────┐
+ ▼      ▼               ▼               ▼              ▼
+Email  SMS         Analytics        Audit        Payment Consumer
+ │      │               │               │               │
+ ▼      ▼               ▼               ▼               ▼
+Mail   SMS         Metrics Update   Insert audit    Business Logic
+
+to make event locally to test kafka
+
+PS C:\kafka\kafka_2.13-4.3.1> .\bin\windows\kafka-console-producer.bat --bootstrap-server localhost:9092 --topic payment-events
+
+{"eventType":"PAYMENT_SUCCESS","orderId":"order100","paymentId":"pay100","amount":50000,"currency":"INR","status":"PAID"}
+
+
+
+****yfmd yqvl ociz mpyl   
+
+
+-- Remove all test data
+DELETE FROM webhook_events;
+DELETE FROM payment_orders;
+
+-- Reset auto increment
+ALTER TABLE webhook_events AUTO_INCREMENT = 1;
+ALTER TABLE payment_orders AUTO_INCREMENT = 1;
+
+
+
+
+
+
+
 # Razorpay + Spring Boot Sample Project
 
 A complete, runnable Spring Boot backend demonstrating:
