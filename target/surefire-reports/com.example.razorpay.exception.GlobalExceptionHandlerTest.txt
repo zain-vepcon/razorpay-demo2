@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.example.razorpay.exception.GlobalExceptionHandlerTest
 -------------------------------------------------------------------------------
-Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.454 s -- in com.example.razorpay.exception.GlobalExceptionHandlerTest
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.238 s -- in com.example.razorpay.exception.GlobalExceptionHandlerTest

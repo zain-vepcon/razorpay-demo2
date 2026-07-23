@@ -34,7 +34,7 @@ public class AsyncConfig {
 	 * @return configured {@link Executor} instance
 	 */
 	@Bean(name = "webhookExecutor")
-	public Executor webhookExecutor() {
+	Executor webhookExecutor() {
 
 		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
 		executor.setCorePoolSize(CORE_POOL_SIZE);

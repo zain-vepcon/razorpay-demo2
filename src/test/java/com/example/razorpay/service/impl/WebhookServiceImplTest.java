@@ -17,15 +17,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.example.razorpay.dto.PaymentEvent;
 import com.example.razorpay.enums.PaymentStatus;
 import com.example.razorpay.model.PaymentOrder;
 import com.example.razorpay.model.WebhookEvent;
 import com.example.razorpay.repository.PaymentOrderRepository;
 import com.example.razorpay.repository.WebhookEventRepository;
 import com.example.razorpay.service.FulfillmentService;
+import com.example.razorpay.service.KafkaProducerService;
 import com.example.razorpay.service.Impl.WebhookServiceImpl;
 
 /**
@@ -60,10 +63,13 @@ class WebhookServiceImplTest {
 	private FulfillmentService fulfillmentService;
 
 	private WebhookServiceImpl webhookService;
+	@Mock
+	private KafkaProducerService kafkaProducerService;
 
 	@BeforeEach
 	void setup() {
-		webhookService = new WebhookServiceImpl(webhookEventRepository, paymentOrderRepository, fulfillmentService);
+		webhookService = new WebhookServiceImpl(webhookEventRepository, paymentOrderRepository, fulfillmentService,
+				kafkaProducerService);
 	}
 
 	@Test
@@ -148,6 +154,7 @@ class WebhookServiceImplTest {
 		verify(paymentOrderRepository).save(order);
 
 		verify(fulfillmentService).fulfillOrder(order);
+		verify(kafkaProducerService).publish(any());
 	}
 
 	@Test
@@ -232,8 +239,10 @@ class WebhookServiceImplTest {
 	 * "..." } } } }
 	 */
 	private JSONObject paymentPayload(String orderId, String paymentId) {
-		return new JSONObject().put("created_at", 1784649593L).put("payload", new JSONObject().put("payment",
-				new JSONObject().put("entity", new JSONObject().put("order_id", orderId).put("id", paymentId))));
+
+		return new JSONObject().put("payload",
+				new JSONObject().put("payment", new JSONObject().put("entity", new JSONObject().put("order_id", orderId)
+						.put("id", paymentId).put("currency", "INR").put("amount", 50000).put("status", "captured"))));
 	}
 
 	/**
@@ -257,6 +266,82 @@ class WebhookServiceImplTest {
 		webhookService.process("payment.failed", paymentPayload("order1", "pay1"));
 
 		verify(fulfillmentService).handlePaymentFailure(order);
+	}
+
+	@Test
+	@DisplayName("Should publish correct Kafka event")
+	void shouldPublishKafkaEvent() {
+
+		PaymentOrder order = new PaymentOrder();
+		order.setRazorpayOrderId("order1");
+		order.setRazorpayPaymentId("pay1");
+		order.setAmount(50000L);
+		order.setReceipt("receipt123");
+		order.setCurrency("INR");
+		order.setStatus(PaymentStatus.CREATED);
+
+		when(paymentOrderRepository.findByRazorpayOrderId("order1")).thenReturn(Optional.of(order));
+
+		webhookService.process("payment.captured", paymentPayload("order1", "pay1"));
+
+		ArgumentCaptor<PaymentEvent> captor = ArgumentCaptor.forClass(PaymentEvent.class);
+
+		verify(kafkaProducerService).publish(captor.capture());
+
+		PaymentEvent event = captor.getValue();
+
+		assertEquals("order1", event.getOrderId());
+		assertEquals("pay1", event.getPaymentId());
+		assertEquals(PaymentStatus.PAID, event.getStatus());
+		assertEquals(50000L, event.getAmount());
+		assertEquals("receipt123", event.getReceipt());
+		assertEquals("INR", event.getCurrency());
+	}
+
+	@Test
+	@DisplayName("Should not publish Kafka event for failed payment")
+	void shouldNotPublishKafkaEventForFailedPayment() {
+
+		PaymentOrder order = new PaymentOrder();
+		order.setAmount(50000L);
+		order.setReceipt("receipt123");
+		order.setCurrency("INR");
+
+		when(paymentOrderRepository.findByRazorpayOrderId("order1")).thenReturn(Optional.of(order));
+
+		webhookService.process("payment.failed", paymentPayload("order1", "pay1"));
+
+		verify(kafkaProducerService).publish(any(PaymentEvent.class));
+
+	}
+
+	@Test
+	@DisplayName("Should not publish Kafka event when order is missing")
+	void shouldNotPublishKafkaWhenOrderNotFound() {
+
+		when(paymentOrderRepository.findByRazorpayOrderId("order1")).thenReturn(Optional.empty());
+
+		webhookService.process("payment.captured", paymentPayload("order1", "pay1"));
+
+		verify(kafkaProducerService, never()).publish(any());
+	}
+
+	@Test
+	@DisplayName("Should not publish Kafka event for unknown webhook")
+	void shouldNotPublishKafkaForUnknownEvent() {
+
+		webhookService.process("random.event", new JSONObject());
+
+		verifyNoInteractions(kafkaProducerService);
+	}
+
+	@Test
+	@DisplayName("Should not publish Kafka event for invalid payload")
+	void shouldNotPublishKafkaForInvalidPayload() {
+
+		webhookService.process("payment.captured", new JSONObject());
+
+		verifyNoInteractions(kafkaProducerService);
 	}
 
 }

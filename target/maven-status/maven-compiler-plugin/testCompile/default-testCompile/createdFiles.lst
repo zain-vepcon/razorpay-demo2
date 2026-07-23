@@ -1,5 +1,0 @@
-com\example\razorpay\controller\PaymentControllerTest.class
-com\example\razorpay\SignatureUtilTest.class
-com\example\razorpay\controller\WebhookControllerTest.class
-com\example\razorpay\security\WebhookSignatureValidatorTest.class
-com\example\razorpay\exception\GlobalExceptionHandlerTest.class

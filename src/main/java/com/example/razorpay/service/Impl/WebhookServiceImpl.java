@@ -8,11 +8,13 @@ import org.json.JSONObject;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.razorpay.dto.PaymentEvent;
 import com.example.razorpay.enums.PaymentStatus;
 import com.example.razorpay.model.WebhookEvent;
 import com.example.razorpay.repository.PaymentOrderRepository;
 import com.example.razorpay.repository.WebhookEventRepository;
 import com.example.razorpay.service.FulfillmentService;
+import com.example.razorpay.service.KafkaProducerService;
 import com.example.razorpay.service.WebhookService;
 
 import lombok.RequiredArgsConstructor;
@@ -34,7 +36,7 @@ public class WebhookServiceImpl implements WebhookService {
 	private final WebhookEventRepository webhookEventRepository;
 	private final PaymentOrderRepository paymentOrderRepository;
 	private final FulfillmentService fulfillmentService;
-
+	private final KafkaProducerService kafkaProducerService;
 	private static final long FULFILLMENT_DELAY = 10000;
 
 	@Override
@@ -119,6 +121,13 @@ public class WebhookServiceImpl implements WebhookService {
 
 			paymentOrderRepository.save(order);
 
+			PaymentEvent event = PaymentEvent.builder().eventType("PAYMENT_SUCCESS").orderId(orderId)
+					.paymentId(paymentId).amount(order.getAmount()).receipt(order.getReceipt())
+					.currency(order.getCurrency()).status(PaymentStatus.PAID).timestamp(System.currentTimeMillis())
+					.build();
+
+			kafkaProducerService.publish(event);
+
 			fulfillmentService.fulfillOrder(order);
 			try {
 				Thread.sleep(FULFILLMENT_DELAY);
@@ -188,12 +197,20 @@ public class WebhookServiceImpl implements WebhookService {
 			order.setFailureReason(failureReason);
 
 			paymentOrderRepository.save(order);
-
 			if (status == PaymentStatus.FAILED) {
 				fulfillmentService.handlePaymentFailure(order);
 			}
 
-		}, () -> log.warn("Unknown order {}", razorpayOrderId));
+			PaymentEvent event = PaymentEvent.builder().eventType(status.name()).orderId(order.getRazorpayOrderId())
+					.paymentId(order.getRazorpayPaymentId()).amount(order.getAmount()).receipt(order.getReceipt())
+					.currency(order.getCurrency() != null ? order.getCurrency() : "INR").status(status)
+					.failureReason(failureReason).timestamp(System.currentTimeMillis()).build();
+
+			kafkaProducerService.publish(event);
+
+			log.info("Kafka Event Published : Order={} Status={}", order.getRazorpayOrderId(), status);
+
+		}, () -> log.warn("Order not found : {}", razorpayOrderId));
 	}
 
 	private void handlePaymentAuthorized(JSONObject payload) {

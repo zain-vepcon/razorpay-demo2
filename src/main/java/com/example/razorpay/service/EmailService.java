@@ -1,5 +1,6 @@
 package com.example.razorpay.service;
 
+import com.example.razorpay.dto.PaymentEvent;
 import com.example.razorpay.model.PaymentOrder;
 
 public interface EmailService {
@@ -23,5 +24,7 @@ public interface EmailService {
 
 	void sendPaymentFailureEmail(String recipient, String customerName, String orderId, String paymentId,
 			String reason);
+
+	void sendMail(PaymentEvent event);
 
 }

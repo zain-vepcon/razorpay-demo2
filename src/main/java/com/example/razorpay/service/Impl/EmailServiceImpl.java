@@ -6,6 +6,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import com.example.razorpay.dto.PaymentEvent;
 import com.example.razorpay.model.PaymentOrder;
 import com.example.razorpay.service.EmailService;
 
@@ -187,5 +188,12 @@ public class EmailServiceImpl implements EmailService {
 				Regards,
 				Razorpay Payment Team
 				""".formatted(customerName, orderId, paymentId, reason);
+	}
+
+	@Override
+	public void sendMail(PaymentEvent event) {
+		System.out.println("EMAIL SENT");
+
+		System.out.println(event.getOrderId());
 	}
 }

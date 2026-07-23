@@ -41,7 +41,7 @@ public class RazorpayConfig {
 	 * @throws RazorpayException if the client cannot be initialized
 	 */
 	@Bean
-	public RazorpayClient razorpayClient() throws RazorpayException {
+	RazorpayClient razorpayClient() throws RazorpayException {
 
 		return new RazorpayClient(keyId, keySecret);
 	}
