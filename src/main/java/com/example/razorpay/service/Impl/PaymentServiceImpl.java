@@ -4,6 +4,8 @@ import java.util.List;
 
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import com.example.razorpay.client.RazorpayOrderClient;
@@ -102,6 +104,7 @@ public class PaymentServiceImpl implements PaymentService {
 	 *
 	 * @throws RazorpayException if Razorpay order creation fails
 	 */
+	@CacheEvict(value = "allPayments", allEntries = true)
 	public OrderResponse createOrder(OrderRequest request) throws RazorpayException {
 		long amountInPaise = Math.round(request.getAmount() * PAISE_MULTIPLIER);
 
@@ -148,7 +151,12 @@ public class PaymentServiceImpl implements PaymentService {
 	}
 
 	/** Retrieves all payment records. */
+	@Override
+	@Cacheable(value = "allPayments")
 	public List<PaymentOrder> getAllPayments() {
+
+		log.info("Fetching ALL payments from DATABASE");
+
 		return paymentOrderRepository.findAll();
 	}
 
@@ -159,7 +167,12 @@ public class PaymentServiceImpl implements PaymentService {
 	 * @return payment record
 	 * @throws RuntimeException if the payment does not exist
 	 */
+	@Override
+	@Cacheable(value = "paymentById", key = "#id")
 	public PaymentOrder getPaymentById(Long id) {
+
+		log.info("Fetching payment {} from DATABASE", id);
+
 		return paymentOrderRepository.findById(id).orElseThrow(() -> new RuntimeException(PAYMENT_NOT_FOUND));
 	}
 
@@ -169,7 +182,12 @@ public class PaymentServiceImpl implements PaymentService {
 	 * @param paymentId Razorpay payment ID
 	 * @return payment record
 	 */
+	@Override
+	@Cacheable(value = "paymentByPaymentId", key = "#paymentId")
 	public PaymentOrder getPaymentByPaymentId(String paymentId) {
+
+		log.info("Fetching payment by paymentId={} from DATABASE", paymentId);
+
 		return paymentOrderRepository.findByRazorpayPaymentId(paymentId)
 				.orElseThrow(() -> new RuntimeException(PAYMENT_NOT_FOUND));
 	}
@@ -180,7 +198,12 @@ public class PaymentServiceImpl implements PaymentService {
 	 * @param orderId Razorpay order ID
 	 * @return payment record
 	 */
+	@Override
+	@Cacheable(value = "paymentByOrderId", key = "#orderId")
 	public PaymentOrder getPaymentByOrderId(String orderId) {
+
+		log.info("Fetching payment by orderId={} from DATABASE", orderId);
+
 		return paymentOrderRepository.findByRazorpayOrderId(orderId)
 				.orElseThrow(() -> new RuntimeException(PAYMENT_NOT_FOUND));
 	}
@@ -196,6 +219,7 @@ public class PaymentServiceImpl implements PaymentService {
 	 * @param request payment failure request
 	 */
 	@Override
+	@CacheEvict(value = { "paymentById", "paymentByOrderId", "paymentByPaymentId", "allPayments" }, allEntries = true)
 	public void updateFailedPayment(PaymentFailureRequest request) {
 
 		paymentOrderRepository.findByRazorpayOrderId(request.getRazorpayOrderId()).ifPresentOrElse(order -> {

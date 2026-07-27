@@ -1,5 +1,6 @@
 package com.example.razorpay.model;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 
@@ -35,7 +36,8 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-public class PaymentOrder {
+public class PaymentOrder implements Serializable {
+	private static final long serialVersionUID = 1L;
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
